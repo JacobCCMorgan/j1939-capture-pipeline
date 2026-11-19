@@ -1,6 +1,8 @@
 import pytest
-from bus import VIN, truck
+from bus import VIN, bam, le, truck
 
+from j1939cap.core.capture import Frame
+from j1939cap.core.ids import build_id
 from j1939cap.core.report import analyze, cadence
 
 
@@ -63,6 +65,28 @@ def test_frames_lost_by_the_recorder_show_up_in_every_steady_broadcast():
     assert integ["steady_identifiers"] == 2
     assert 8 < integ["missing_pct_p25"] <= integ["missing_pct"] <= integ["missing_pct_p75"] < 12
     assert integ["rows_out_of_frame"] == 0
+
+
+def test_the_latest_diagnostic_message_wins_whether_it_came_in_one_frame_or_several():
+    one_code = Frame(1000, build_id(6, 0xFECA, 0x00), bytes.fromhex("04FF21061F02FFFF"))
+    two_codes = bam(3000, 0xFECA, bytes.fromhex("04FF" + "21061F02" + "6E000003"), sa=0x00)
+    cleared = Frame(6000, build_id(6, 0xFECA, 0x00), bytes.fromhex("00FF00000000FFFF"))
+
+    dm1 = analyze([one_code, *two_codes])["diagnostics"][0]
+    assert [code["spn"] for code in dm1["dtcs"]] == [1569, 110] and dm1["last_ts_ms"] == 3100
+
+    dm1 = analyze([one_code, *two_codes, cleared])["diagnostics"][0]
+    assert dm1["dtcs"] == [] and dm1["messages"] == 3 and dm1["lamps"]["amber_warning"] == "off"
+
+
+def test_distance_comes_from_the_standard_field_when_the_high_resolution_one_is_not_available():
+    frames = []
+    for second in range(5):
+        frames.append(Frame(1000 * second, build_id(6, 0xFEC1, 0x00), b"\xff" * 8))
+        frames.append(Frame(1000 * second + 1, build_id(6, 0xFEE0, 0x00), b"\xff" * 4 + le(123_456 / 0.125, 4)))
+    distance = analyze(frames)["eld"]["distance"]
+    assert distance["available"] and not distance["sources_disagree"]
+    assert [(s["signal"], s["last"]) for s in distance["sources"]] == [("total_vehicle_distance", 123_456.0)]
 
 
 def test_an_empty_capture_still_gives_a_report():
