@@ -36,6 +36,12 @@ def test_engine_hours_and_fuel():
     assert readings(0xFEF2, "E803FFFFFFFFFFFF")["engine_fuel_rate"].value == pytest.approx(50.0)
 
 
+def test_scaled_values_carry_no_binary_noise():
+    assert 3 * 0.05 != 0.15  # what plain multiplication gives
+    assert readings(0xFEE5, "03000000FFFFFFFF")["engine_total_hours"].value == 0.15
+    assert readings(0xFEF1, "FF0100FFFFFFFFFF")["wheel_based_vehicle_speed"].value == 0.00390625  # the smallest step stays exact
+
+
 @pytest.mark.parametrize(
     "raw,length,state",
     [

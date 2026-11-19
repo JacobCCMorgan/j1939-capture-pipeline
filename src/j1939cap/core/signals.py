@@ -77,6 +77,7 @@ def decode(pgn: int, data: bytes) -> list[Reading]:
             continue
         raw = int.from_bytes(chunk, "little")
         state = raw_state(raw, signal.length)
-        value = raw * signal.scale + signal.offset if state == VALID else None
+        # eight decimals keep 1/256 km/h exact and drop the binary noise of steps such as 0.05 h
+        value = round(raw * signal.scale + signal.offset, 8) if state == VALID else None
         out.append(Reading(signal.name, value, state))
     return out
