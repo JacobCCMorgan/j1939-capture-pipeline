@@ -15,6 +15,9 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.4"]
 
+[project.scripts]
+j1939cap = "j1939cap.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
