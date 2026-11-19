@@ -21,6 +21,11 @@ def test_parameter_number_uses_the_top_three_bits_of_the_third_byte():
     assert decode_dtc(bytes([0xB4, 0xF0, 0xF0, 0x81])) == Dtc(520372, 16, 1, 1)
 
 
+def test_an_occurrence_count_of_127_is_not_a_count():
+    assert decode_dtc(bytes([0x88, 0x03, 0x0E, 0x7F])) == Dtc(904, 14, None, 0)
+    assert decode_dtc(bytes([0x88, 0x03, 0x0E, 0x7E])).occurrence == 126
+
+
 def test_several_codes_from_a_transport_message():
     payload = bytes.fromhex("50FF" + "6E000003" + "BE000201" + "A7060B7E")
     message = decode_dm(payload)

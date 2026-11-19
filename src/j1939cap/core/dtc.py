@@ -5,7 +5,7 @@ message fits a single frame; with more it travels over the transport protocol.
 
 A trouble code is a suspect parameter number (19 bits), a failure mode identifier (5 bits), an occurrence count
 (7 bits) and a conversion method bit. The first two bytes hold the low 16 bits of the parameter number; the top
-three bits of the third byte complete it.
+three bits of the third byte complete it. An occurrence count of 127 means the sender does not keep one.
 """
 
 from __future__ import annotations
@@ -14,12 +14,13 @@ from typing import NamedTuple
 
 LAMP_STATES = ("off", "on", "error", "not_available")
 LAMPS = ("protect", "amber_warning", "red_stop", "malfunction_indicator")  # byte 1, low bit pair first
+OCCURRENCE_NOT_AVAILABLE = 0x7F
 
 
 class Dtc(NamedTuple):
     spn: int
     fmi: int
-    occurrence: int
+    occurrence: int | None
     conversion_method: int
 
 
@@ -36,7 +37,8 @@ def decode_dtc(chunk: bytes) -> Dtc:
     if len(chunk) != 4:
         raise ValueError("a trouble code is four bytes")
     spn = chunk[0] | (chunk[1] << 8) | ((chunk[2] >> 5) << 16)
-    return Dtc(spn, chunk[2] & 0x1F, chunk[3] & 0x7F, chunk[3] >> 7)
+    count = chunk[3] & 0x7F
+    return Dtc(spn, chunk[2] & 0x1F, None if count == OCCURRENCE_NOT_AVAILABLE else count, chunk[3] >> 7)
 
 
 def decode_dm(payload: bytes) -> DiagnosticMessage:
