@@ -1,4 +1,8 @@
-"""Command line: `j1939cap inspect capture.csv`."""
+"""Command line.
+
+`j1939cap inspect capture.csv` prints the report of one capture.
+`j1939cap deidentify raw/*.csv --out data/input` writes captures that can be published.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +11,8 @@ import json
 import sys
 
 from .core.report import analyze_file
+from .deid.capture import DeidError, deidentify_file, write_manifest
+from .deid.pseudonym import KEY_FILE_VARIABLE, Pseudonymizer
 
 _ELD_LABELS = {"vehicle_speed": "vehicle speed", "engine_speed": "engine speed", "distance": "distance", "engine_hours": "engine hours"}
 
@@ -62,19 +68,44 @@ def render_text(report: dict) -> str:
     return "\n".join(lines)
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="j1939cap", description="Decode and check J1939 captures.")
-    commands = parser.add_subparsers(dest="command", required=True)
-    inspect = commands.add_parser("inspect", help="analyze one capture and print the report")
-    inspect.add_argument("capture", help="recorder CSV file")
-    inspect.add_argument("--summary", help="sidecar file; found next to the capture when omitted")
-    inspect.add_argument("--json", action="store_true", help="print the full report as JSON")
-    inspect.add_argument("--no-repair", action="store_true", help="set out-of-frame rows aside without recovering frames from them")
-    args = parser.parse_args(argv)
-
+def _inspect(args: argparse.Namespace) -> int:
     report = analyze_file(args.capture, args.summary, repair=not args.no_repair)
     sys.stdout.write((json.dumps(report, indent=2) if args.json else render_text(report)) + "\n")
     return 0
+
+
+def _deidentify(args: argparse.Namespace) -> int:
+    try:
+        pseudonymizer = Pseudonymizer.from_env()
+        entries = [deidentify_file(path, args.out, pseudonymizer) for path in args.captures]
+    except (DeidError, RuntimeError) as error:
+        sys.stderr.write(f"j1939cap: {error}\n")
+        return 1
+    manifest = write_manifest(args.out, entries)
+    for entry in entries:
+        sys.stdout.write(f"{entry['capture']}: {entry['rows']:,} rows, {entry['rows_changed']:,} changed\n")
+    sys.stdout.write(f"{manifest}: {len(entries)} captures\n")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="j1939cap", description="Decode and check J1939 captures.")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    inspect = commands.add_parser("inspect", help="analyze one capture and print the report")
+    inspect.add_argument("capture", help="recorder CSV file, plain or gzip")
+    inspect.add_argument("--summary", help="sidecar file; found next to the capture when omitted")
+    inspect.add_argument("--json", action="store_true", help="print the full report as JSON")
+    inspect.add_argument("--no-repair", action="store_true", help="set out-of-frame rows aside without recovering frames from them")
+    inspect.set_defaults(run=_inspect)
+
+    deidentify = commands.add_parser("deidentify", help=f"write publishable copies of captures; {KEY_FILE_VARIABLE} names the key file")
+    deidentify.add_argument("captures", nargs="+", help="recorder CSV files, each with its summary next to it")
+    deidentify.add_argument("--out", required=True, help="directory for the output and its manifest")
+    deidentify.set_defaults(run=_deidentify)
+
+    args = parser.parse_args(argv)
+    return args.run(args)
 
 
 if __name__ == "__main__":
