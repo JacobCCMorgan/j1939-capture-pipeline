@@ -119,3 +119,22 @@ def test_a_packet_number_past_the_announced_count_ends_the_message():
     frames = [announce(0x20, PGN_VIN, len(VIN), sa=0x00), *packets_of(bytes(35), sa=0x00)]
     done = run(r, [frames[0], frames[1], frames[5]])
     assert [(m.status, m.received) for m in done] == [("incomplete", 1)]
+
+
+def test_a_message_lists_the_frames_it_was_built_from():
+    r = Reassembler()
+    first, second, third = packets_of(VIN, sa=0x00)
+    stray = (parse_id(build_id(7, PGN_TP_DT, 0x21, 0xFF)), bytes([1]) + b"ABCDEFG")
+    frames = [announce(0x20, PGN_VIN, len(VIN), sa=0x00), first, stray, second, second, third]
+    done = []
+    for row, (jid, data) in enumerate(frames):
+        done += r.feed(50 * row, jid, data, ref=row)
+    assert len(done) == 1 and done[0].status == "complete"
+    # row 2 belongs to another sender; row 4 repeats packet 2 and is still part of this message
+    assert done[0].frames == ((0, 0), (1, 1), (3, 2), (4, 2), (5, 3))
+
+
+def test_frames_are_not_tracked_unless_references_are_given():
+    r = Reassembler()
+    done = run(r, [announce(0x20, PGN_VIN, len(VIN), sa=0x00), *packets_of(VIN, sa=0x00)])
+    assert done[0].frames == ()

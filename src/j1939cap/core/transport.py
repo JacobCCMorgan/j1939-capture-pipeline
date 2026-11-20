@@ -12,11 +12,14 @@ with a status that says whether the whole message arrived:
   timeout) with packets missing.
 - aborted: one side sent a connection abort.
 - open_at_end: the capture stopped while packets were still arriving.
+
+A caller that passes a reference with each frame (a row number, say) gets them back on the message: `frames` lists
+the reference and sequence number of the announcement (sequence 0) and of every data frame that went into it.
 """
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from .ids import PGN_TP_CM, PGN_TP_DT, J1939Id
 
@@ -39,23 +42,36 @@ class TpMessage(NamedTuple):
     ts_start: int
     ts_end: int
     payload: bytes | None
+    frames: tuple[tuple[Any, int], ...] = ()
 
 
 class _Session:
-    __slots__ = ("kind", "sa", "da", "pgn", "size", "packets", "ts_start", "last_ts", "last_sequence", "got")
+    __slots__ = ("kind", "sa", "da", "pgn", "size", "packets", "ts_start", "last_ts", "last_sequence", "got", "frames")
 
-    def __init__(self, kind: str, sa: int, da: int, pgn: int, size: int, packets: int, ts: int) -> None:
+    def __init__(self, kind: str, sa: int, da: int, pgn: int, size: int, packets: int, ts: int, ref: Any = None) -> None:
         self.kind, self.sa, self.da, self.pgn, self.size, self.packets = kind, sa, da, pgn, size, packets
         self.ts_start = self.last_ts = ts
         self.last_sequence = 0
         self.got: dict[int, bytes] = {}
+        self.frames: list[tuple[Any, int]] = [] if ref is None else [(ref, 0)]
 
     def close(self, status: str) -> TpMessage:
         payload = None
         if status == "complete":
             payload = b"".join(self.got[n] for n in range(1, self.packets + 1))[: self.size]
         return TpMessage(
-            self.kind, self.sa, self.da, self.pgn, self.size, self.packets, len(self.got), status, self.ts_start, self.last_ts, payload
+            self.kind,
+            self.sa,
+            self.da,
+            self.pgn,
+            self.size,
+            self.packets,
+            len(self.got),
+            status,
+            self.ts_start,
+            self.last_ts,
+            payload,
+            tuple(self.frames),
         )
 
 
@@ -70,15 +86,15 @@ class Reassembler:
         session = self._open.pop(key, None)
         return [session.close(status)] if session is not None else []
 
-    def feed(self, ts_ms: int, jid: J1939Id, data: bytes) -> list[TpMessage]:
+    def feed(self, ts_ms: int, jid: J1939Id, data: bytes, ref: Any = None) -> list[TpMessage]:
         """Take one frame; return the messages it finished, if any."""
         if jid.pgn == PGN_TP_CM and len(data) == 8:
-            return self._control(ts_ms, jid, data)
+            return self._control(ts_ms, jid, data, ref)
         if jid.pgn == PGN_TP_DT and data:
-            return self._data(ts_ms, jid, data)
+            return self._data(ts_ms, jid, data, ref)
         return []
 
-    def _control(self, ts_ms: int, jid: J1939Id, data: bytes) -> list[TpMessage]:
+    def _control(self, ts_ms: int, jid: J1939Id, data: bytes, ref: Any) -> list[TpMessage]:
         control = data[0]
         if control in (CM_RTS, CM_BAM):
             key = (jid.sa, jid.da)
@@ -88,7 +104,7 @@ class Reassembler:
                 self.malformed_announcements += 1
                 return closed
             pgn = data[5] | (data[6] << 8) | (data[7] << 16)
-            self._open[key] = _Session("BAM" if control == CM_BAM else "RTS", jid.sa, jid.da, pgn, size, packets, ts_ms)
+            self._open[key] = _Session("BAM" if control == CM_BAM else "RTS", jid.sa, jid.da, pgn, size, packets, ts_ms, ref)
             return closed
         if control == CM_ABORT:
             return self._close((jid.sa, jid.da), "aborted") + self._close((jid.da, jid.sa), "aborted")
@@ -98,7 +114,7 @@ class Reassembler:
                 session.last_ts = ts_ms
         return []
 
-    def _data(self, ts_ms: int, jid: J1939Id, data: bytes) -> list[TpMessage]:
+    def _data(self, ts_ms: int, jid: J1939Id, data: bytes, ref: Any) -> list[TpMessage]:
         key = (jid.sa, jid.da)
         closed: list[TpMessage] = []
         session = self._open.get(key)
@@ -111,6 +127,8 @@ class Reassembler:
         sequence = data[0]
         if sequence <= session.last_sequence and session.got.get(sequence) == data[1:8]:
             session.last_ts = ts_ms  # the same packet sent again
+            if ref is not None:
+                session.frames.append((ref, sequence))
             return closed
         if not session.last_sequence < sequence <= session.packets:
             # Packets arrive in order. A number that goes backwards, or past the announced count, belongs to a
@@ -120,6 +138,8 @@ class Reassembler:
         session.got[sequence] = data[1:8]
         session.last_sequence = sequence
         session.last_ts = ts_ms
+        if ref is not None:
+            session.frames.append((ref, sequence))
         if len(session.got) == session.packets:
             closed += self._close(key, "complete")
         return closed
