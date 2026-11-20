@@ -26,6 +26,7 @@ class SlipRun(NamedTuple):
     ts_before: int | None
     ts_after: int | None
     recovered: int
+    offsets: tuple[int, ...] = ()  # where each recovered record starts in the run's byte stream
 
 
 class IntegrityResult(NamedTuple):
@@ -55,18 +56,36 @@ def _traffic_continues(frames: list[Frame], start: int, duration_ms: int | None,
     return True
 
 
-def recover(rows: list[Frame], ts_low: int, ts_high: int, known_ids: set[int]) -> list[Frame]:
-    """Read frames back out of a run of rows that were cut at the wrong offset.
+def to_stream(rows: list[Frame]) -> bytes | None:
+    """The bytes the rows were cut from, or None when a row cannot have come from a fifteen-byte record."""
+    stream = bytearray()
+    for row in rows:
+        if not (0 <= row.ts_ms < 1 << 24 and 0 <= row.can_id < 1 << 32 and len(row.data) == 8):
+            return None
+        stream += row.ts_ms.to_bytes(3, "big") + row.can_id.to_bytes(4, "big") + row.data
+    return bytes(stream)
+
+
+def from_stream(stream: bytes) -> list[Frame]:
+    """Cut a byte stream into rows the way the recorder does."""
+    if len(stream) % RECORD_BYTES:
+        raise ValueError("a stream is a whole number of fifteen-byte records")
+    return [
+        Frame(int.from_bytes(stream[n : n + 3], "big"), int.from_bytes(stream[n + 3 : n + 7], "big"), stream[n + 7 : n + RECORD_BYTES])
+        for n in range(0, len(stream), RECORD_BYTES)
+    ]
+
+
+def locate(rows: list[Frame], ts_low: int, ts_high: int, known_ids: set[int]) -> list[tuple[int, Frame]]:
+    """Find frames in a run of rows that were cut at the wrong offset; each comes with its offset in the stream.
 
     A record is accepted when its timestamp fits between the frames around the run, does not go backwards, its
     identifier is one the capture uses elsewhere, and the record after it is acceptable too. The last condition drops
     the record that straddles the point where bytes were lost: its head looks right but its payload is not its own.
     """
-    stream = bytearray()
-    for row in rows:
-        if not (0 <= row.ts_ms < 1 << 24 and 0 <= row.can_id < 1 << 32 and len(row.data) == 8):
-            return []
-        stream += row.ts_ms.to_bytes(3, "big") + row.can_id.to_bytes(4, "big") + row.data
+    stream = to_stream(rows)
+    if stream is None:
+        return []
 
     def record_at(pos: int, not_before: int) -> Frame | None:
         if pos + RECORD_BYTES > len(stream):
@@ -77,19 +96,24 @@ def recover(rows: list[Frame], ts_low: int, ts_high: int, known_ids: set[int]) -
             return Frame(ts, can_id, bytes(stream[pos + 7 : pos + RECORD_BYTES]))
         return None
 
-    out: list[Frame] = []
+    out: list[tuple[int, Frame]] = []
     pos, last_ts = 0, ts_low
     while pos + RECORD_BYTES <= len(stream):
         frame = record_at(pos, last_ts)
         if frame is not None:
             after = pos + RECORD_BYTES
             if after == len(stream) or record_at(after, frame.ts_ms) is not None:
-                out.append(frame)
+                out.append((pos, frame))
                 last_ts = frame.ts_ms
                 pos = after
                 continue
         pos += 1
     return out
+
+
+def recover(rows: list[Frame], ts_low: int, ts_high: int, known_ids: set[int]) -> list[Frame]:
+    """Read frames back out of a run of rows that were cut at the wrong offset."""
+    return [frame for _, frame in locate(rows, ts_low, ts_high, known_ids)]
 
 
 def check(
@@ -151,12 +175,15 @@ def check(
         ts_before = out[-1].ts_ms if out else None
         ts_after = frames[j].ts_ms if j < len(frames) else None
         recovered: list[Frame] = []
+        offsets: tuple[int, ...] = ()
         if repair:
             low = ts_before if ts_before is not None else 0
             high = ts_after if ts_after is not None else low + max_step_ms
-            recovered = recover(frames[i:j], low, high, known_ids)
+            located = locate(frames[i:j], low, high, known_ids)
+            offsets = tuple(offset for offset, _ in located)
+            recovered = [frame for _, frame in located]
             out.extend(recovered)
             recovered_all.extend(recovered)
-        runs.append(SlipRun(i, j - i, ts_before, ts_after, len(recovered)))
+        runs.append(SlipRun(i, j - i, ts_before, ts_after, len(recovered), offsets))
         i = j
     return IntegrityResult(out, recovered_all, runs, len(frames))

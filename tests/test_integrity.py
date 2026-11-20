@@ -1,3 +1,4 @@
+from j1939cap.core import integrity
 from j1939cap.core.capture import Frame
 from j1939cap.core.integrity import RECORD_BYTES, check, recover
 
@@ -91,3 +92,14 @@ def test_a_row_that_steps_backwards_is_a_slip():
     frames.insert(10, Frame(5, 0x0AAAAAAA, bytes(8)))
     result = check(frames, duration_ms=2000)
     assert [(r.first_row, r.rows) for r in result.runs] == [(10, 1)] and len(result.frames) == 20
+
+
+def test_a_run_says_where_its_recovered_records_sit_in_the_byte_stream():
+    truth, rows = slipped_capture()
+    run = check(rows, duration_ms=2000).runs[0]
+    stream = integrity.to_stream(rows[run.first_row : run.first_row + run.rows])
+    assert len(run.offsets) == run.recovered > 0
+    for offset in run.offsets:
+        record = integrity.from_stream(stream[offset : offset + RECORD_BYTES])[0]
+        assert record in truth
+    assert integrity.from_stream(stream) == rows[run.first_row : run.first_row + run.rows]
