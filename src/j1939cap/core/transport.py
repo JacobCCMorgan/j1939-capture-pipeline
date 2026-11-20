@@ -13,8 +13,15 @@ with a status that says whether the whole message arrived:
 - aborted: one side sent a connection abort.
 - open_at_end: the capture stopped while packets were still arriving.
 
+Only sequence numbers and timing decide which packets belong to a message, never their content. A packet whose
+number does not move forward ends the message as incomplete, even when its bytes equal a packet already seen: a
+broadcast that repeats every second looks exactly like that when the recorder has lost the announcement in between,
+and stitching the two together would report a message that was never received whole. The one case where a number
+may go back is an addressed transfer whose receiver asks, in a clear-to-send, for packets to be sent again.
+
 A caller that passes a reference with each frame (a row number, say) gets them back on the message: `frames` lists
-the reference and sequence number of the announcement (sequence 0) and of every data frame that went into it.
+the reference and sequence number of the announcement (sequence 0) and of every data frame that went into it. A
+packet sent again at the receiver's request is listed each time.
 """
 
 from __future__ import annotations
@@ -112,6 +119,9 @@ class Reassembler:
             session = self._open.get((jid.da, jid.sa))  # sent by the receiver, back to the sender
             if session is not None:
                 session.last_ts = ts_ms
+                next_packet = data[2]
+                if control == CM_CTS and session.kind == "RTS" and 1 <= next_packet <= session.packets:
+                    session.last_sequence = next_packet - 1  # the sender continues, or starts again, from here
         return []
 
     def _data(self, ts_ms: int, jid: J1939Id, data: bytes, ref: Any) -> list[TpMessage]:
@@ -125,14 +135,9 @@ class Reassembler:
             self.orphan_data_frames += 1
             return closed
         sequence = data[0]
-        if sequence <= session.last_sequence and session.got.get(sequence) == data[1:8]:
-            session.last_ts = ts_ms  # the same packet sent again
-            if ref is not None:
-                session.frames.append((ref, sequence))
-            return closed
         if not session.last_sequence < sequence <= session.packets:
-            # Packets arrive in order. A number that goes backwards, or past the announced count, belongs to a
-            # message whose announcement was not seen; it must not be allowed to fill the gaps of this one.
+            # Packets arrive in order. A number that does not move forward, or goes past the announced count,
+            # belongs to a message whose announcement was not seen; it must not fill the gaps of this one.
             self.orphan_data_frames += 1
             return self._close(key, "incomplete")
         session.got[sequence] = data[1:8]

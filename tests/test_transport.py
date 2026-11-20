@@ -96,13 +96,43 @@ def test_capture_end_distinguishes_a_message_in_flight_from_a_stalled_one():
     assert [m.status for m in r.flush(10_000)] == ["incomplete"]
 
 
-def test_repeated_packet_and_bad_announcement():
+def test_an_announcement_that_cannot_be_true_is_counted_and_ignored():
+    r = Reassembler()
+    jid, _ = announce(0x20, PGN_VIN, len(VIN), sa=0x00)
+    bad = (jid, bytes([0x20, 40, 0, 2, 0xFF, 0xEC, 0xFE, 0x00]))  # forty bytes cannot fit in two packets
+    assert r.feed(0, *bad) == [] and r.malformed_announcements == 1
+
+
+def test_a_packet_number_that_does_not_move_forward_ends_the_message_whatever_its_bytes():
     r = Reassembler()
     frames = [announce(0x20, PGN_VIN, len(VIN), sa=0x00), *packets_of(VIN, sa=0x00)]
     done = run(r, [frames[0], frames[1], frames[1], frames[2], frames[3]])
-    assert [(m.status, m.received) for m in done] == [("complete", 3)]
-    bad = (frames[0][0], bytes([0x20, 40, 0, 2, 0xFF, 0xEC, 0xFE, 0x00]))  # forty bytes cannot fit in two packets
-    assert r.feed(0, *bad) == [] and r.malformed_announcements == 1
+    assert [(m.status, m.received) for m in done] == [("incomplete", 1)]
+    assert r.orphan_data_frames == 3
+
+
+def test_two_broadcasts_of_the_same_message_are_not_stitched_into_one():
+    """The first loses its last packet, the second its announcement; neither was received whole."""
+    r = Reassembler()
+    announcement, first, second, third = [announce(0x20, PGN_VIN, len(VIN), sa=0x00), *packets_of(VIN, sa=0x00)]
+    done = run(r, [announcement, first, second, first, second, third])
+    assert [(m.status, m.received) for m in done] == [("incomplete", 2)]
+    assert r.orphan_data_frames == 3 and r.flush(10_000) == []
+
+
+def test_the_receiver_may_ask_for_packets_again():
+    r = Reassembler()
+    payload = bytes(range(20))
+    back = parse_id(build_id(7, PGN_TP_CM, 0xF9, 0x00))
+    first_two = (back, bytes([0x11, 2, 1, 0xFF, 0xFF, 0xEC, 0xFE, 0x00]))
+    again_from_two = (back, bytes([0x11, 2, 2, 0xFF, 0xFF, 0xEC, 0xFE, 0x00]))
+    one, two, three = packets_of(payload, sa=0x00, da=0xF9)
+    frames = [announce(0x10, PGN_VIN, 20, sa=0x00, da=0xF9), first_two, one, two, again_from_two, two, three]
+    done = []
+    for row, (jid, data) in enumerate(frames):
+        done += r.feed(50 * row, jid, data, ref=row)
+    assert [(m.status, m.payload) for m in done] == [("complete", payload)]
+    assert done[0].frames == ((0, 0), (2, 1), (3, 2), (5, 2), (6, 3)) and r.orphan_data_frames == 0
 
 
 def test_packets_of_an_unannounced_message_do_not_fill_the_gaps_of_the_previous_one():
@@ -125,13 +155,12 @@ def test_a_message_lists_the_frames_it_was_built_from():
     r = Reassembler()
     first, second, third = packets_of(VIN, sa=0x00)
     stray = (parse_id(build_id(7, PGN_TP_DT, 0x21, 0xFF)), bytes([1]) + b"ABCDEFG")
-    frames = [announce(0x20, PGN_VIN, len(VIN), sa=0x00), first, stray, second, second, third]
+    frames = [announce(0x20, PGN_VIN, len(VIN), sa=0x00), first, stray, second, third]
     done = []
     for row, (jid, data) in enumerate(frames):
         done += r.feed(50 * row, jid, data, ref=row)
     assert len(done) == 1 and done[0].status == "complete"
-    # row 2 belongs to another sender; row 4 repeats packet 2 and is still part of this message
-    assert done[0].frames == ((0, 0), (1, 1), (3, 2), (4, 2), (5, 3))
+    assert done[0].frames == ((0, 0), (1, 1), (3, 2), (4, 3))  # row 2 belongs to another sender
 
 
 def test_frames_are_not_tracked_unless_references_are_given():
