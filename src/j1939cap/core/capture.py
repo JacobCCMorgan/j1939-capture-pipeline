@@ -6,10 +6,15 @@ sits next to it and says what was asked for and what the recorder believes it wr
 
 Rows are returned as they are. A row whose identifier is wider than 29 bits is still a row here; deciding whether
 it belongs to the capture is the job of `integrity`.
+
+A capture may be gzip-compressed (`name.csv.gz`). The writer produces the recorder's own layout, so a file that is
+read and written back unchanged is the same file.
 """
 
 from __future__ import annotations
 
+import gzip
+import io
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,10 +45,18 @@ def _parse_row(line: str) -> Frame | None:
         return None
 
 
+HEADER = "timestamp_ms,can_id,data"
+
+
+def _is_gzip(path: str | Path) -> bool:
+    return str(path).lower().endswith(".gz")
+
+
 def read_recorder_csv(path: str | Path) -> ReadResult:
     frames: list[Frame] = []
     malformed = 0
-    with open(path, encoding="ascii", errors="replace") as fh:
+    opener = gzip.open if _is_gzip(path) else open
+    with opener(path, "rt", encoding="ascii", errors="replace") as fh:
         for n, line in enumerate(fh):
             line = line.strip()
             if not line:
@@ -117,8 +130,36 @@ def read_summary(path: str | Path) -> CaptureSummary:
     return CaptureSummary(fields)
 
 
+def capture_name(capture_path: str | Path) -> str:
+    """File name without `.csv` or `.csv.gz`."""
+    name = Path(capture_path).name
+    for suffix in (".csv.gz", ".csv"):
+        if name.lower().endswith(suffix):
+            return name[: -len(suffix)]
+    return Path(name).stem
+
+
 def find_summary(capture_path: str | Path) -> Path | None:
-    """`name.csv` is described by `name_summary.txt` in the same directory."""
-    capture_path = Path(capture_path)
-    candidate = capture_path.with_name(capture_path.stem + "_summary.txt")
+    """`name.csv` or `name.csv.gz` is described by `name_summary.txt` in the same directory."""
+    candidate = Path(capture_path).with_name(capture_name(capture_path) + "_summary.txt")
     return candidate if candidate.is_file() else None
+
+
+def format_row(frame: Frame) -> str:
+    return f"{frame.ts_ms},{frame.can_id:08X},{frame.data.hex().upper()}"
+
+
+def write_recorder_csv(path: str | Path, frames: list[Frame]) -> None:
+    """Write rows in the recorder's layout. A `.gz` path is compressed without a timestamp, so equal rows give equal bytes."""
+    text = "".join(line + "\n" for line in (HEADER, *map(format_row, frames)))
+    if _is_gzip(path):
+        buffer = io.BytesIO()
+        with gzip.GzipFile(filename="", mode="wb", fileobj=buffer, mtime=0, compresslevel=9) as fh:
+            fh.write(text.encode("ascii"))
+        Path(path).write_bytes(buffer.getvalue())
+    else:
+        Path(path).write_text(text, encoding="ascii", newline="\n")
+
+
+def write_summary(path: str | Path, fields: dict[str, str]) -> None:
+    Path(path).write_text("".join(f"{key}={value}\n" for key, value in fields.items()), encoding="utf-8", newline="\n")

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from j1939cap.core.capture import Frame, find_summary, read_recorder_csv, read_summary
+from j1939cap.core.capture import Frame, capture_name, find_summary, read_recorder_csv, read_summary, write_recorder_csv, write_summary
 
 CSV = """timestamp_ms,can_id,data
 0,0CF00400,F07D7D401F00F0FF
@@ -68,3 +68,34 @@ def test_summary_is_found_next_to_the_capture(tmp_path):
     sidecar = tmp_path / "canraw_demo_20260302_summary.txt"
     sidecar.write_text(SUMMARY)
     assert find_summary(capture) == sidecar
+
+
+ROWS = [
+    Frame(0, 0x0CF00400, bytes.fromhex("F07D7D401F00F0FF")),
+    Frame(12, 0x18FEF100, bytes.fromhex("FFFFFF0000000000")),
+    Frame(3998033, 0x9511FF04, bytes.fromhex("0018F00011223344")),
+]
+
+
+def test_written_rows_have_the_recorder_layout_and_read_back_the_same(tmp_path):
+    path = tmp_path / "out.csv"
+    write_recorder_csv(path, ROWS)
+    assert path.read_text().splitlines()[:2] == ["timestamp_ms,can_id,data", "0,0CF00400,F07D7D401F00F0FF"]
+    assert read_recorder_csv(path) == (ROWS, 0)
+
+
+def test_gzip_capture_reads_the_same_and_is_reproducible(tmp_path):
+    first, second = tmp_path / "a.csv.gz", tmp_path / "b.csv.gz"
+    write_recorder_csv(first, ROWS)
+    write_recorder_csv(second, ROWS)
+    assert first.read_bytes()[:2] == b"\x1f\x8b" and first.read_bytes() == second.read_bytes()
+    assert read_recorder_csv(first) == (ROWS, 0)
+
+
+def test_summary_is_found_next_to_a_plain_or_compressed_capture(tmp_path):
+    write_summary(tmp_path / "truck_summary.txt", {"request_time_sec": "240", "complete": "true"})
+    assert capture_name("dir/truck.csv.gz") == capture_name("truck.csv") == "truck"
+    for name in ("truck.csv", "truck.csv.gz"):
+        assert find_summary(tmp_path / name) == tmp_path / "truck_summary.txt"
+    assert find_summary(tmp_path / "other.csv") is None
+    assert read_summary(tmp_path / "truck_summary.txt").requested_s == 240
