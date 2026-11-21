@@ -93,3 +93,18 @@ def test_an_empty_capture_still_gives_a_report():
     report = analyze([])
     assert report["capture"]["frames"] == 0 and report["integrity"]["missing_pct"] is None
     assert not report["eld"]["vehicle_speed"]["available"] and report["vin"] == []
+
+
+def test_the_report_carries_what_the_recorder_said_and_where_the_frames_start_and_end(tmp_path):
+    from j1939cap.core.capture import read_summary, write_summary
+
+    write_summary(
+        tmp_path / "s.txt",
+        {"fw_version": "v9.9.9", "st_version": "", "request_time_sec": "20", "start_time": "2026-03-02 14:05:09", "duration_ms": "20050"},
+    )
+    cap = analyze(truck(), read_summary(tmp_path / "s.txt"))["capture"]
+    assert (cap["started_at"], cap["firmware"], cap["can_firmware"]) == ("2026-03-02T14:05:09Z", "v9.9.9", None)
+    assert (cap["requested_s"], cap["duration_ms"], cap["first_frame_ms"], cap["last_frame_ms"]) == (20, 20050, 0, 19990)
+
+    bare = analyze([])["capture"]
+    assert (bare["started_at"], bare["firmware"], bare["first_frame_ms"], bare["last_frame_ms"]) == (None, None, None, None)
