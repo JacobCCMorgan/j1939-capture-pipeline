@@ -20,5 +20,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
       - run: pytest -q
-      - name: the command line is installed and runs
-        run: j1939cap --help
+      - name: compare the published captures
+        run: j1939cap summarize data/input/captures --out /tmp/reports
+      - name: the committed reports match a fresh run
+        run: diff -r reports /tmp/reports
