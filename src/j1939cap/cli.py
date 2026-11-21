@@ -1,7 +1,8 @@
 """Command line.
 
 `j1939cap inspect capture.csv` prints the report of one capture.
-`j1939cap deidentify raw/*.csv --out data/input` writes captures that can be published.
+`j1939cap deidentify raw/*.csv --out data/input/captures` writes captures that can be published.
+`j1939cap summarize data/input/captures --out reports` compares every capture of a directory.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import sys
 from .core.report import analyze_file
 from .deid.capture import DeidError, deidentify_file, write_manifest
 from .deid.pseudonym import KEY_FILE_VARIABLE, Pseudonymizer
+from .summarize import summarize
 
 _ELD_LABELS = {"vehicle_speed": "vehicle speed", "engine_speed": "engine speed", "distance": "distance", "engine_hours": "engine hours"}
 
@@ -88,6 +90,12 @@ def _deidentify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _summarize(args: argparse.Namespace) -> int:
+    rows = summarize(args.directory, args.out)
+    sys.stdout.write(f"{len(rows)} captures -> {args.out}/captures.csv, {args.out}/captures.md\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="j1939cap", description="Decode and check J1939 captures.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -103,6 +111,11 @@ def main(argv: list[str] | None = None) -> int:
     deidentify.add_argument("captures", nargs="+", help="recorder CSV files, each with its summary next to it")
     deidentify.add_argument("--out", required=True, help="directory for the output and its manifest")
     deidentify.set_defaults(run=_deidentify)
+
+    compare = commands.add_parser("summarize", help="compare every capture of a directory")
+    compare.add_argument("directory", help="directory of captures, with their summaries and manifest if any")
+    compare.add_argument("--out", required=True, help="directory for captures.csv and captures.md")
+    compare.set_defaults(run=_summarize)
 
     args = parser.parse_args(argv)
     return args.run(args)
