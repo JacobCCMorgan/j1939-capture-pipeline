@@ -1,0 +1,13 @@
+sn=DEV-811a412817
+fw_version=v1.7.0
+st_version=MS2502ELD_v2_0_b9
+request_time_sec=180
+start_time=2026-10-19 17:02:25
+end_time=2026-10-19 17:05:26
+duration_ms=181039
+early_stop=
+records_written=94273
+iot_queue_dropped=0
+st_stop_ok=true
+st_drop_count=0
+complete=true
