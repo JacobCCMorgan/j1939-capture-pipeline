@@ -92,6 +92,8 @@ identifiers.
 
 - Twelve trucks, 33 to 240 seconds each. This is evidence about cases, not statistics about a fleet, and the data
   reflects October and November 2026, not how the provider's devices perform today.
+- The trucks were not picked at random. Nine of the twelve devices are in the group that gets new firmware first,
+  where a device goes after it has shown anomalies in the field, so the sample leans toward difficult trucks.
 - A missing frame may have been lost by the recorder or never sent; the capture alone cannot tell, and there is no
   second recorder to compare with. That the loss is about the same across a capture's identifiers points at the
   recorder.

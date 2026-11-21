@@ -65,6 +65,7 @@ provider's platform from September 2026.
 - Six trucks broadcast a VIN. For four of them the vehicle key equals the `vin_key` on record for that device; for
   the other two the platform had no VIN on record. No device has a different one.
 - Of the six devices whose captures hold no VIN, four have a `vin_key` on record.
-- `dim_device.is_internal_test` is true for nine of the twelve devices: they belong to the provider's test group.
-  The captures are kept, not filtered, because this project is about what is on the bus and how well it was
-  recorded, not about the platform's customers.
+- `dim_device.is_internal_test` is true for nine of the twelve devices. The flag marks the group that receives new
+  firmware first, and a device is put in that group after it has shown anomalies in the field. These are working
+  trucks in service, not bench units, so the captures are kept and not filtered. They are also not a random sample:
+  they lean toward trucks whose devices have been hard to get right.
