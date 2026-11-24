@@ -1,6 +1,6 @@
 import pytest
 
-from j1939cap.core.vin import check_digit, clean, is_valid, manufacturer, model_year
+from j1939cap.core.vin import check_digit, clean, is_valid, is_vin_character, manufacturer, model_year
 
 SAMPLE = "1M8GDM9AXKP042788"  # the worked example used in most descriptions of the check digit
 
@@ -22,6 +22,13 @@ def test_payload_is_cut_at_the_asterisk_and_stripped():
     assert clean(SAMPLE.encode() + b"*\xff\xff\xff") == SAMPLE
     assert clean(b"\x00" + SAMPLE.lower().encode() + b"\r\n") == SAMPLE
     assert clean(b"\xff\xff\xff\xff") == ""
+
+
+def test_a_byte_outside_ascii_is_never_a_vin_character():
+    # 0xDF and 0xB5 are letters in Latin-1 whose upper case is "SS" and a Greek letter: neither belongs to a VIN.
+    assert clean(b"1M8\xdfGDM\xb5") == "1M8GDM"
+    assert is_vin_character("a") and is_vin_character("9")
+    assert not any(is_vin_character(ch) for ch in "ioqIOQ* \xdf\xff")
 
 
 def test_invalid_shapes():

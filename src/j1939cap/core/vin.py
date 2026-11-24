@@ -43,11 +43,15 @@ WMI = {
 }
 
 
+def is_vin_character(ch: str) -> bool:
+    """A digit or a letter other than I, O and Q, in either case. Nothing outside ASCII counts."""
+    return ch.isascii() and ch.upper() in _ALPHABET
+
+
 def clean(raw: bytes | str) -> str:
     """Text of a VIN payload: everything before the asterisk, upper case, VIN characters only."""
     text = raw.decode("latin-1") if isinstance(raw, bytes) else raw
-    text = text.split("*", 1)[0].upper()
-    return "".join(ch for ch in text if ch in _ALPHABET)
+    return "".join(ch.upper() for ch in text.split("*", 1)[0] if is_vin_character(ch))
 
 
 def check_digit(vin: str) -> str:
