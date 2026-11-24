@@ -12,7 +12,7 @@ import csv
 from pathlib import Path
 
 from .core.capture import capture_name
-from .core.report import analyze_file
+from .core.report import analyze_file, engine_hours, per_engine_hour_text
 from .core.signals import VALID
 from .deid.capture import MANIFEST_NAME, read_manifest
 
@@ -55,6 +55,8 @@ COLUMNS = (
     "distance_sources",
     "distance_spread_km",
     "hours_sources",
+    "engine_hours",
+    "km_per_engine_hour",
     "max_speed_kmh",
     "sources_with_active_codes",
     "active_codes",
@@ -110,6 +112,8 @@ def row_of(report: dict, keys: dict[str, str]) -> dict:
         "distance_sources": _sources(eld["distance"]),
         "distance_spread_km": eld["distance"]["spread_km"],
         "hours_sources": _sources(eld["engine_hours"]),
+        "engine_hours": engine_hours(report),
+        "km_per_engine_hour": per_engine_hour_text(report),
         "max_speed_kmh": round(max(speeds), 1) if speeds else None,
         "sources_with_active_codes": len(active),
         "active_codes": sum(len(d["dtcs"]) for d in active),
@@ -244,10 +248,12 @@ def render_markdown(rows: list[dict], manifest: list[dict[str, str]] | None = No
         "## What an electronic logging device needs",
         "",
         "Which source addresses send each item. Distance spread is the gap between the last readings of the sources.",
+        "Km per engine hour is each controller's distance divided by the engine hours, a check on the distance: a",
+        "counter that was reset gives a figure no truck averages.",
         "",
     ]
-    header = ["capture", "vehicle speed", "engine speed", "distance", "distance spread (km)", "engine hours", "VIN broadcast"]
-    header.append("VIN requests")
+    header = ["capture", "vehicle speed", "engine speed", "distance", "distance spread (km)", "engine hours"]
+    header += ["km per engine hour", "VIN broadcast", "VIN requests"]
     lines += _table(
         header,
         [
@@ -258,6 +264,7 @@ def render_markdown(rows: list[dict], manifest: list[dict[str, str]] | None = No
                 r["distance_sources"],
                 r["distance_spread_km"],
                 r["hours_sources"],
+                r["km_per_engine_hour"],
                 r["vin_on_bus"],
                 r["vin_requests"],
             ]

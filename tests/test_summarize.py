@@ -40,6 +40,8 @@ def test_one_row_per_capture_oldest_first_with_keys_from_the_manifest(tmp_path):
     assert full["device_key"] == P.device("AB00000001") and full["vehicle_key"].startswith("VIN-")
     assert (full["make"], full["model_year"], full["vin_on_bus"], full["vin_check_digit_ok"]) == ("Freightliner", 2020, True, True)
     assert (full["speed_sources"], full["distance_sources"], full["distance_spread_km"]) == ("00", "00 17", 312.4)
+    assert (full["engine_hours"], full["km_per_engine_hour"]) == (12345.5, "00 40.5; 17 40.5")
+    assert (empty["engine_hours"], empty["km_per_engine_hour"]) == (None, "")
     assert (full["transport_announced"], full["transport_complete"], full["missing_pct"]) == (2, 2, 0.0)
     assert full["proprietary_pct"] == 8.0 and full["max_speed_kmh"] == 89.5  # 100 proprietary frames in 1,250
     assert (full["sources_with_active_codes"], full["active_codes"], full["negative_acknowledgments"]) == (1, 1, 1)

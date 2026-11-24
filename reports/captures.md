@@ -53,22 +53,24 @@ complete counts the multi-packet messages that arrived whole out of those announ
 ## What an electronic logging device needs
 
 Which source addresses send each item. Distance spread is the gap between the last readings of the sources.
+Km per engine hour is each controller's distance divided by the engine hours, a check on the distance: a
+counter that was reset gives a figure no truck averages.
 
-| capture | vehicle speed | engine speed | distance | distance spread (km) | engine hours | VIN broadcast | VIN requests |
-|---|---|---|---|---|---|---|---|
-| DEV-811a412817_20261019T170225Z | 00 | 00 | 00 31 | 746221.675 | 00 | no | 2 |
-| DEV-af3adba16c_20261019T180323Z | 00 | 00 | 00 31 | 0.05 | 00 | yes | 7 |
-| DEV-af3adba16c_20261019T181835Z | 00 | 00 | 00 31 | 0.05 | 00 | yes | 15 |
-| DEV-af3adba16c_20261019T182127Z | 00 | 00 | 00 31 | 0.05 | 00 | yes | 4 |
-| DEV-f5bdc8e9a4_20261110T225347Z | 11 | 00 | 17 | 0.0 | 00 | yes | 0 |
-| DEV-d809a4dd22_20261110T233159Z | 11 | 00 | 17 | 0.0 | 00 | yes | 0 |
-| DEV-8d8a03ff7c_20261112T225142Z | - | 00 | - | - | - | no | 0 |
-| DEV-e755bd6f48_20261112T225304Z | 00 | 00 | 00 | 0.08 | 00 | no | 0 |
-| DEV-c4acf10b41_20261113T020108Z | 11 | 00 | 17 | 0.0 | 00 | yes | 0 |
-| DEV-6e418af0fe_20261114T010004Z | 00 | 00 | 00 17 | 249.02 | 00 | no | 0 |
-| DEV-3d9ec3f623_20261114T011727Z | 00 | 00 | 00 | 0.05 | 00 | no | 0 |
-| DEV-b3302c1cd0_20261114T011821Z | 11 | 00 | 17 | 0.0 | 00 | yes | 0 |
-| DEV-e08a7a160f_20261114T032203Z | 11 | 00 | 17 | 0.0 | 00 | yes | 0 |
+| capture | vehicle speed | engine speed | distance | distance spread (km) | engine hours | km per engine hour | VIN broadcast | VIN requests |
+|---|---|---|---|---|---|---|---|---|
+| DEV-811a412817_20261019T170225Z | 00 | 00 | 00 31 | 746221.675 | 00 | 00 18.4; 31 44.9 | no | 2 |
+| DEV-af3adba16c_20261019T180323Z | 00 | 00 | 00 31 | 0.05 | 00 | 00 42.5; 31 42.5 | yes | 7 |
+| DEV-af3adba16c_20261019T181835Z | 00 | 00 | 00 31 | 0.05 | 00 | 00 42.5; 31 42.5 | yes | 15 |
+| DEV-af3adba16c_20261019T182127Z | 00 | 00 | 00 31 | 0.05 | 00 | 00 42.5; 31 42.5 | yes | 4 |
+| DEV-f5bdc8e9a4_20261110T225347Z | 11 | 00 | 17 | 0.0 | 00 | 17 60.3 | yes | 0 |
+| DEV-d809a4dd22_20261110T233159Z | 11 | 00 | 17 | 0.0 | 00 | 17 63.8 | yes | 0 |
+| DEV-8d8a03ff7c_20261112T225142Z | - | 00 | - | - | - | - | no | 0 |
+| DEV-e755bd6f48_20261112T225304Z | 00 | 00 | 00 | 0.08 | 00 | 00 51.8 | no | 0 |
+| DEV-c4acf10b41_20261113T020108Z | 11 | 00 | 17 | 0.0 | 00 | 17 728.0 | yes | 0 |
+| DEV-6e418af0fe_20261114T010004Z | 00 | 00 | 00 17 | 249.02 | 00 | 00 52.5; 17 52.5 | no | 0 |
+| DEV-3d9ec3f623_20261114T011727Z | 00 | 00 | 00 | 0.05 | 00 | 00 53.7 | no | 0 |
+| DEV-b3302c1cd0_20261114T011821Z | 11 | 00 | 17 | 0.0 | 00 | 17 62.4 | yes | 0 |
+| DEV-e08a7a160f_20261114T032203Z | 11 | 00 | 17 | 0.0 | 00 | 17 325.8 | yes | 0 |
 
 ## Trouble codes and refusals
 

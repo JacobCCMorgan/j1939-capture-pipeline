@@ -135,6 +135,33 @@ def _eld_section(signals: dict, vins: list[dict], requests: Counter) -> dict:
     return section
 
 
+def engine_hours(report: dict) -> float | None:
+    """Engine hours as the bus carries them, from the lowest source address that sends them (the engine is 00)."""
+    sources = sorted(report["eld"]["engine_hours"]["sources"], key=lambda s: s["sa"])
+    return sources[0]["last"] if sources else None
+
+
+def distance_per_engine_hour(report: dict) -> dict[int, float]:
+    """Each controller's total distance divided by the engine hours of the same bus, by source address.
+
+    Both are counters over the life of the truck, so the ratio is its average speed with the engine running. It is
+    a check on a distance: a counter that was reset or belongs to a replaced controller gives a figure no truck
+    averages.
+    """
+    hours = engine_hours(report)
+    if not hours:
+        return {}
+    furthest: dict[int, float] = {}
+    for source in report["eld"]["distance"]["sources"]:
+        furthest[source["sa"]] = max(furthest.get(source["sa"], 0.0), source["last"])
+    return {sa: round(km / hours, 1) for sa, km in sorted(furthest.items())}
+
+
+def per_engine_hour_text(report: dict) -> str:
+    """`00 18.4; 31 44.9`: source address and kilometres per engine hour."""
+    return "; ".join(f"{sa:02X} {value:.1f}" for sa, value in distance_per_engine_hour(report).items())
+
+
 def analyze(frames: list[Frame], summary: CaptureSummary | None = None, *, repair: bool = True) -> dict:
     duration_ms = summary.duration_ms if summary else None
     integrity = check(frames, duration_ms, repair=repair)
