@@ -5,6 +5,7 @@
 `j1939cap summarize data/input/captures --out reports` compares every capture of a directory.
 `j1939cap extract-log raw/*.txt --out data/input/device_logs` writes publishable extracts of device logs.
 `j1939cap pair data/input/captures data/input/device_logs --out reports` sets each capture next to its device log.
+`j1939cap fleet data/input --out reports` puts the devices and the makes side by side.
 """
 
 from __future__ import annotations
@@ -13,12 +14,15 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 from .core.report import analyze_file
 from .deid.capture import DeidError, deidentify_file, write_manifest
 from .deid.pseudonym import KEY_FILE_VARIABLE, Pseudonymizer
 from .devicelog import extract as log_extract
 from .devicelog import rules as log_rules
+from .fleet import DeviceTableError
+from .fleet import write_reports as write_fleet_reports
 from .pairing import write_reports
 from .summarize import summarize
 
@@ -128,6 +132,18 @@ def _pair(args: argparse.Namespace) -> int:
     return 0
 
 
+def _fleet(args: argparse.Namespace) -> int:
+    root = Path(args.input)
+    try:
+        rows = write_fleet_reports(root / "captures", root / "device_logs", root / "devices.csv", args.out)
+    except (DeviceTableError, OSError) as error:
+        sys.stderr.write(f"j1939cap: {error}\n")
+        return 1
+    usable = sum(1 for row in rows if row["capture_usable"])
+    sys.stdout.write(f"{len(rows)} devices, {usable} with a usable capture -> {args.out}/devices.csv, {args.out}/devices.md\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="j1939cap", description="Decode and check J1939 captures.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -162,6 +178,11 @@ def main(argv: list[str] | None = None) -> int:
     pair.add_argument("logs", help="directory of device log extracts")
     pair.add_argument("--out", required=True, help="directory for pairing.csv and pairing.md")
     pair.set_defaults(run=_pair)
+
+    fleet = commands.add_parser("fleet", help="one row per device and per make, from captures, device logs and devices.csv")
+    fleet.add_argument("input", help="directory holding captures/, device_logs/ and devices.csv")
+    fleet.add_argument("--out", required=True, help="directory for devices.csv and devices.md")
+    fleet.set_defaults(run=_fleet)
 
     args = parser.parse_args(argv)
     return args.run(args)
