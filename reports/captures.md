@@ -92,5 +92,5 @@ Which source addresses send each item. Distance spread is the gap between the la
 
 Of 2,065,558 frames, 1,317,742 (63.8%) carry their original data bytes, 744,008 (36.0%)
 keep timestamp and identifier with the data filled with 0xFF, and 3,808 (0.2%) were rewritten:
-VIN, position or request. The 64 rows of the out-of-frame runs hold 56 of those frames; what is left of those
-rows is 0xFF, apart from the timestamp and identifier that follow a recovered frame.
+VIN, position, request or address claim. The 64 rows of the out-of-frame runs hold 56 of those frames; what is
+left of those rows is 0xFF, apart from the timestamp and identifier that follow a recovered frame.

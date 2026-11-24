@@ -287,8 +287,8 @@ def _published(manifest: list[dict[str, str]]) -> list[str]:
     return [
         f"Of {frames:,} frames, {kept:,} ({_share(kept, frames)}) carry their original data bytes, {masked:,} ({_share(masked, frames)})",
         f"keep timestamp and identifier with the data filled with 0xFF, and {rewritten:,} ({_share(rewritten, frames)}) were rewritten:",
-        f"VIN, position or request. The {in_runs} rows of the out-of-frame runs hold {recovered} of those frames; what is left of those",
-        "rows is 0xFF, apart from the timestamp and identifier that follow a recovered frame.",
+        f"VIN, position, request or address claim. The {in_runs} rows of the out-of-frame runs hold {recovered} of those frames; what is",
+        "left of those rows is 0xFF, apart from the timestamp and identifier that follow a recovered frame.",
     ]
 
 
