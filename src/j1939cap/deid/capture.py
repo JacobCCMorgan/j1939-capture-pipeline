@@ -8,8 +8,9 @@ The one exception is the timestamp and identifier of a damaged record that direc
 seven bytes are what vouched for the record before them, so they stay and the run still reads back the same way.
 
 Long messages are followed through the transport protocol. The data frames of a message are published only when
-the message is complete and its parameter group is on the kept list; the VIN is rewritten across its packets; data
-frames of an incomplete message, or with no announcement, are filled with 0xFF behind their sequence number.
+the message is complete and its parameter group is on the kept list; the VIN, or whatever text a controller sends
+in its place, is rewritten across its packets; data frames of an incomplete message, or with no announcement, are
+filled with 0xFF behind their sequence number.
 
 Before returning, the output is read back. It must split into the same runs and give the same frames as the
 original, changed only as the rules say. If it does not, nothing is returned.
@@ -23,7 +24,6 @@ from collections import Counter
 from pathlib import Path
 from typing import NamedTuple
 
-from ..core import vin as vin_rules
 from ..core.capture import Frame, capture_name, find_summary, read_recorder_csv, read_summary, write_recorder_csv, write_summary
 from ..core.ids import PGN_TP_CM, PGN_TP_DT, parse_id
 from ..core.integrity import RECORD_BYTES, check, from_stream, to_stream
@@ -79,12 +79,16 @@ class Outcome(NamedTuple):
 
 
 def _rewritten_vin_payload(payload: bytes, pseudonymizer: Pseudonymizer) -> tuple[bytes | None, str | None]:
-    """New payload and vehicle pseudonym, or (None, None) when the payload does not start with a 17-character VIN."""
-    text = vin_rules.clean(payload)
-    if len(text) != 17 or payload[:17].decode("latin-1").upper() != text:
+    """New payload and the vehicle pseudonym behind it.
+
+    The payload is None when it holds no VIN character: there is nothing to rewrite and it is masked like any
+    other text. The pseudonym is None for a fragment, which does not name a vehicle the way a VIN does.
+    """
+    kind, text = rules.classify_identification(payload)
+    if kind == rules.NO_TEXT:
         return None, None
     key = pseudonymizer.vehicle(text)
-    return rules.rewrite_vin(text, key).encode("ascii") + payload[17:], key
+    return rules.rewrite_identification(payload, key), key if kind != rules.FRAGMENT else None
 
 
 def _apply_rules(frames: list[Frame], pseudonymizer: Pseudonymizer) -> tuple[list[bytes], Counter, Counter]:
@@ -106,8 +110,9 @@ def _apply_rules(frames: list[Frame], pseudonymizer: Pseudonymizer) -> tuple[lis
                 payload, outcome = message.payload, TRANSPORT_KEPT
             elif act == rules.VIN:
                 payload, key = _rewritten_vin_payload(message.payload, pseudonymizer)
-                if key is not None:
+                if payload is not None:
                     outcome = rules.VIN
+                if key is not None:
                     vehicle_keys[key] += 1
         for ref, sequence in message.frames:
             if sequence == 0:

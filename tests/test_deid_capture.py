@@ -46,6 +46,30 @@ def test_the_vin_is_rewritten_across_its_packets_and_nothing_of_it_is_left():
     assert outcome.counts[rules.VIN] == 12 and outcome.counts[deid.TRANSPORT_CONTROL] == 4
 
 
+def test_a_mistyped_vin_and_a_fragment_are_rewritten_and_only_the_first_names_the_vehicle():
+    mistyped = VIN[:10] + "O" + VIN[11:]  # seventeen characters, one of them a letter no VIN has
+    fragment = b"\xff" * 11 + VIN[11:].encode()  # a second controller sends the last six characters only
+    quiet = [f for f in truck(seconds=2) if parse_id(f.can_id).pgn not in (0xEC00, PGN_TP_DT)]
+    rows = sorted(quiet + bam(4, 0xFEEC, mistyped.encode() + b"*", sa=0x00) + bam(400, 0xFEEC, fragment, sa=0x31), key=lambda f: f.ts_ms)
+    outcome = deid.deidentify_rows(rows, 2_000, P)
+
+    key = P.vehicle(mistyped)
+    assert outcome.vehicle_keys == (key,) and outcome.counts[rules.VIN] == 6
+    sent = [b"".join(p.data[1:] for p in by_group(outcome.rows, PGN_TP_DT) if parse_id(p.can_id).sa == sa) for sa in (0x00, 0x31)]
+    assert sent[0] == rules.rewrite_identification(mistyped.encode() + b"*", key) + b"\xff" * 3
+    assert sent[1] == rules.rewrite_identification(fragment, P.vehicle(VIN[11:])) + b"\xff" * 4
+    assert sent[0][:3] == VIN[:3].encode() and sent[0][10:11] == b"O" and sent[1][:11] == b"\xff" * 11
+    everything = b"".join(f.data for f in outcome.rows)
+    assert not any(VIN[n : n + 4].encode() in everything for n in range(3, 14))
+
+    before, after = analyze(rows), analyze(outcome.rows)
+    assert [len(v["vin"]) for v in before["vin"]] == [len(v["vin"]) for v in after["vin"]] == [16, 6]
+    for report in (before, after):
+        for vin in report["vin"]:
+            vin["vin"] = ""
+    assert before == after
+
+
 def extra_frames():
     """A proprietary frame, a position, a request with buffer residue, free text over transport, and loose packets."""
     position = b"".join(round((v + 210) * 1e7).to_bytes(4, "little") for v in (34.0522, -118.2437))

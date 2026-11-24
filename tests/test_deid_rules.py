@@ -83,3 +83,39 @@ def test_rewrite_needs_a_whole_vin_and_a_whole_pseudonym():
         rules.rewrite_vin("1M8GDM9AXKP04278", KEY)
     with pytest.raises(ValueError):
         rules.rewrite_vin("1M8GDM9AXKP042788", "VIN-0a1b")
+
+
+def test_a_whole_vin_payload_is_its_stand_in_and_what_follows_is_scrubbed():
+    payload = b"1m8gdm9axkp042788\x01*AB\xff"
+    assert rules.classify_identification(payload) == (rules.WHOLE_VIN, "1M8GDM9AXKP042788")
+    assert rules.rewrite_identification(payload, KEY) == rules.rewrite_vin("1M8GDM9AXKP042788", KEY).encode() + b"?*??\xff"
+
+
+def test_a_mistyped_vin_keeps_maker_year_and_the_character_that_spoils_it():
+    payload = b"1M8GDM9AXKO042788*"  # a letter O where the plant code belongs
+    assert rules.classify_identification(payload) == (rules.MISTYPED_VIN, "1M8GDM9AXKO042788")
+    new = rules.rewrite_identification(payload, KEY)
+    assert new == b"1M80A1B20KO3D4EZZ*"
+    assert len(vin_rules.clean(new)) == len(vin_rules.clean(payload)) == 16
+    assert rules.classify_identification(new)[0] == rules.MISTYPED_VIN
+
+
+def test_in_a_fragment_every_vin_character_is_replaced_and_padding_stays():
+    padded = b"\xff" * 11 + b"042788"  # the last six characters only, right-aligned in seventeen bytes
+    assert rules.classify_identification(padded) == (rules.FRAGMENT, "042788")
+    assert rules.rewrite_identification(padded, KEY) == b"\xff" * 11 + b"0A1B2C"
+    assert rules.rewrite_identification(b"042788*", KEY) == b"0A1B2C*"
+    too_long = b"1M8GDM9AXKP0427889*"
+    assert rules.classify_identification(too_long)[0] == rules.FRAGMENT
+    assert rules.rewrite_identification(too_long, KEY) == b"0A1B2C3D4E0A1B2C3D*"
+
+
+def test_padding_alone_is_no_text():
+    for payload in (b"\x00" * 12, b"\xff" * 17 + b"*", b"*", b"   *\xff\xff"):
+        assert rules.classify_identification(payload) == (rules.NO_TEXT, "")
+
+
+def test_identification_needs_a_whole_pseudonym():
+    with pytest.raises(ValueError):
+        rules.rewrite_identification(b"042788*", "VIN-0a1b")
+
