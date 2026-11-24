@@ -3,17 +3,23 @@
 `j1939cap inspect capture.csv` prints the report of one capture.
 `j1939cap deidentify raw/*.csv --out data/input/captures` writes captures that can be published.
 `j1939cap summarize data/input/captures --out reports` compares every capture of a directory.
+`j1939cap extract-log raw/*.txt --out data/input/device_logs` writes publishable extracts of device logs.
+`j1939cap pair data/input/captures data/input/device_logs --out reports` sets each capture next to its device log.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .core.report import analyze_file
 from .deid.capture import DeidError, deidentify_file, write_manifest
 from .deid.pseudonym import KEY_FILE_VARIABLE, Pseudonymizer
+from .devicelog import extract as log_extract
+from .devicelog import rules as log_rules
+from .pairing import write_reports
 from .summarize import summarize
 
 _ELD_LABELS = {"vehicle_speed": "vehicle speed", "engine_speed": "engine speed", "distance": "distance", "engine_hours": "engine hours"}
@@ -96,6 +102,32 @@ def _summarize(args: argparse.Namespace) -> int:
     return 0
 
 
+def _extract_log(args: argparse.Namespace) -> int:
+    rules_path = os.environ.get(log_rules.RULES_FILE_VARIABLE)
+    if not rules_path:
+        sys.stderr.write(f"j1939cap: set {log_rules.RULES_FILE_VARIABLE} to the path of the log rules file\n")
+        return 1
+    try:
+        rules = log_rules.load(rules_path)
+        pseudonymizer = Pseudonymizer.from_env()
+        entries = [log_extract.extract_file(path, rules, args.out, pseudonymizer) for path in args.logs]
+    except (log_rules.RulesError, log_extract.ExtractError, RuntimeError) as error:
+        sys.stderr.write(f"j1939cap: {error}\n")
+        return 1
+    manifest = log_extract.write_manifest(args.out, entries)
+    for entry in entries:
+        sys.stdout.write(f"{entry['log']}: {entry['readings']:,} readings, {entry['events']:,} events from {entry['lines']:,} lines\n")
+    sys.stdout.write(f"{manifest}: {len(entries)} logs\n")
+    return 0
+
+
+def _pair(args: argparse.Namespace) -> int:
+    rows = write_reports(args.captures, args.logs, args.out)
+    paired = sum(1 for row in rows if row["covered"])
+    sys.stdout.write(f"{len(rows)} captures, {paired} with a log that spans them -> {args.out}/pairing.csv, {args.out}/pairing.md\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="j1939cap", description="Decode and check J1939 captures.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -116,6 +148,20 @@ def main(argv: list[str] | None = None) -> int:
     compare.add_argument("directory", help="directory of captures, with their summaries and manifest if any")
     compare.add_argument("--out", required=True, help="directory for captures.csv and captures.md")
     compare.set_defaults(run=_summarize)
+
+    extract = commands.add_parser(
+        "extract-log",
+        help=f"write publishable extracts of device logs; needs {log_rules.RULES_FILE_VARIABLE} and {KEY_FILE_VARIABLE}",
+    )
+    extract.add_argument("logs", nargs="+", help="device log files")
+    extract.add_argument("--out", required=True, help="directory for the extracts and their manifest")
+    extract.set_defaults(run=_extract_log)
+
+    pair = commands.add_parser("pair", help="set each capture next to the log of its device")
+    pair.add_argument("captures", help="directory of captures")
+    pair.add_argument("logs", help="directory of device log extracts")
+    pair.add_argument("--out", required=True, help="directory for pairing.csv and pairing.md")
+    pair.set_defaults(run=_pair)
 
     args = parser.parse_args(argv)
     return args.run(args)

@@ -1,10 +1,13 @@
+import json
 from datetime import timedelta
 
-from bus import truck
+import pytest
+from bus import VIN, truck
 from unit_log import CAPTURE_AT, CAPTURE_SECONDS, RULES_DOCUMENT, SERIAL, log_lines, write_log
 
 from j1939cap import pairing
-from j1939cap.core.capture import CaptureSummary
+from j1939cap.cli import main
+from j1939cap.core.capture import CaptureSummary, write_recorder_csv, write_summary
 from j1939cap.core.report import analyze
 from j1939cap.deid import capture as deid
 from j1939cap.deid.pseudonym import Pseudonymizer
@@ -81,3 +84,41 @@ def test_a_log_is_matched_by_device_and_time(tmp_path):
     row = pairing.pair(report, later)
     assert (row["log"], row["covered"], row["request_offset_s"], row["distance_check"]) == (log.name, False, None, pairing.NO_READING)
     assert pairing.pair(published_capture(), None)["log"] is None
+
+
+@pytest.fixture
+def published(tmp_path, monkeypatch):
+    """A directory of captures and one of log extracts, made through the command line."""
+    key, rules = tmp_path / "key.txt", tmp_path / "rules.json"
+    key.write_text("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", encoding="ascii")
+    rules.write_text(json.dumps(RULES_DOCUMENT), encoding="utf-8")
+    monkeypatch.setenv("J1939CAP_DEID_KEY_FILE", str(key))
+    monkeypatch.setenv("J1939CAP_LOG_RULES_FILE", str(rules))
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_recorder_csv(raw / "capture.csv", ROWS)
+    write_summary(raw / "capture_summary.txt", SUMMARY)
+    write_log(raw / "unit.log", log_lines(rows_written=len(ROWS)))
+    assert main(["deidentify", str(raw / "capture.csv"), "--out", str(tmp_path / "captures")]) == 0
+    assert main(["extract-log", str(raw / "unit.log"), "--out", str(tmp_path / "logs")]) == 0
+    return tmp_path
+
+
+def test_the_command_line_extracts_pairs_and_writes_both_reports(published, capsys):
+    assert main(["pair", str(published / "captures"), str(published / "logs"), "--out", str(published / "reports")]) == 0
+    assert "1 captures, 1 with a log that spans them" in capsys.readouterr().out
+    lines = (published / "reports" / "pairing.csv").read_text(encoding="ascii").splitlines()
+    assert lines[0] == ",".join(pairing.COLUMNS) and len(lines) == 2
+    cells = dict(zip(pairing.COLUMNS, lines[1].split(","), strict=True))
+    assert cells["capture"] == f"{P.device(SERIAL)}_20310304T101000Z" and cells["log"] == f"{P.device(SERIAL)}_20310304T100000Z"
+    assert (cells["covered"], cells["distance_check"], cells["vin_check"], cells["device_source"]) == ("yes", "between", "same", "17")
+    text = (published / "reports" / "pairing.md").read_text(encoding="utf-8")
+    assert "1 captures, 1 with a log of the same device, 1 of those logs span the capture." in text
+    assert "| 17 VDHR | 00 VDHR 500000.475; 17 VDHR 499688.075 | 312.4 |" in text
+    assert SERIAL not in text and VIN not in text
+
+
+def test_extracting_needs_the_rules_file(published, monkeypatch, capsys):
+    monkeypatch.delenv("J1939CAP_LOG_RULES_FILE")
+    assert main(["extract-log", str(published / "raw" / "unit.log"), "--out", str(published / "again")]) == 1
+    assert "J1939CAP_LOG_RULES_FILE" in capsys.readouterr().err
