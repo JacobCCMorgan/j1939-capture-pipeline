@@ -1,0 +1,13 @@
+sn=DEV-dd9b566900
+fw_version=v1.8.0
+st_version=MS2502ELD_v2_0_b11
+request_time_sec=240
+start_time=2026-11-18 22:33:36
+end_time=2026-11-18 22:37:37
+duration_ms=241031
+early_stop=
+records_written=10146
+iot_queue_dropped=0
+st_stop_ok=true
+st_drop_count=0
+complete=true
