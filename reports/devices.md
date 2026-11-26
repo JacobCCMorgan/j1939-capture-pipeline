@@ -1,0 +1,136 @@
+# Devices and makes
+
+75 devices, 69 with a usable capture (10,000 frames or more). 57 have a log with at least 20 readings taken while moving; in 8 of those the device could not read one or more of the five values.
+
+## By make
+
+Trucks with a usable capture. Addresses are J1939 source addresses in hex: `00+17 x9` means nine trucks on which both the engine (00) and the instrument cluster (17) send the value. These are counts of the trucks in the input, not rates for a make.
+
+| make | trucks | speed sent by | distance sent by | VIN on the bus | two distance sources | more than 1 km apart | with a log | device reads all five |
+|---|---|---|---|---|---|---|---|---|
+| Freightliner | 12 | 00 x12 | 00+17 x9, 00 x3 | 0 | 9 | 8 | 8 | 8 |
+| International | 8 | 00+0B x8 | 00+17 x8 | 1 | 8 | 7 | 8 | 8 |
+| Kenworth | 14 | 00 x14 | 00+31 x7, 00 x4, 00+17+27 x2, 00+27 x1 | 9 | 10 | 6 | 11 | 10 |
+| Peterbilt | 13 | 00 x13 | 00+31 x6, 00 x4, 00+17+27 x2, none x1 | 8 | 8 | 6 | 11 | 9 |
+| Volvo | 22 | 11 x21, none x1 | 17 x21, 00 x1 | 20 | 0 | 0 | 16 | 14 |
+
+## Distance per engine hour
+
+Each controller's distance divided by the engine hours of the same bus: the truck's average speed over its life with the engine running. The 39 trucks whose distance sources agree within 1 km, or that have one source, put the middle eight tenths of that figure between 38.5 and 74.5 km per engine hour.
+
+Of the 9 trucks whose sources are more than 100,000 km apart, the engine's distance is below that band on 7, and on 5 of those another controller's is inside it. On 1 the engine's is inside and the other controller's is not. Engine hours are a counter of the engine controller too, so the check can fail on both sides.
+
+| device | make | model year | spread km | engine hours | km per engine hour, against the band |
+|---|---|---|---|---|---|
+| DEV-dd9b566900 | Kenworth | 2014 | 251654.695 | 30925.2 | 00 52.4 inside; 31 60.5 inside |
+| DEV-72f43eb2c9 | Freightliner | 2014 | 493712.87 | 48019 | 00 40.9 inside; 17 30.6 below |
+| DEV-811a412817 | Kenworth | 2018 | 746221.675 | 28149.95 | 00 18.4 below; 31 44.9 inside |
+| DEV-e3bd4c28b3 | Freightliner | 2018 | 1042475.62 | 37554.95 | 00 26.5 below; 17 54.3 inside |
+| DEV-964041cd91 | Freightliner | 2015 | 1273777.8 | 29760.2 | 00 2.2 below; 17 45 inside |
+| DEV-b790d132a6 | Peterbilt | 2014 | 1340291.74 | 40420.9 | 00 29.3 below; 31 62.5 inside |
+| DEV-7d7e59631a | Peterbilt | 2016 | 1541685.08 | 16374.75 | 00 15.8 below; 31 109.9 above |
+| DEV-544a7439f0 | Freightliner | 2015 | 1577450.03 | 32127.95 | 00 5.8 below; 17 54.9 inside |
+| DEV-b8bf86eccb | Freightliner | 2016 | 2223848.425 | 11477.5 | 00 10.9 below; 17 204.7 above |
+
+## Devices that could not read a value
+
+The device's own log gives two more looks at the same devices, both counted per 100 reading cycles while driving and away from a capture: the cycles the device had to retry, and the error codes it raised. The 49 devices that read all five values retry at most 0.7 cycles in 100 and raise at most 1.1 codes per 100.
+
+| device | make | model year | moving readings | not read by the device | retried cycles per 100 | error codes per 100 cycles | distance on the bus from | frames in the capture |
+|---|---|---|---|---|---|---|---|---|
+| DEV-41e6deb06f | Volvo | 2015 | 297 | vin speed engine_hours | 100 | 55.9 | 00 | 18781 |
+| DEV-4b53103235 | Volvo | 2020 | 475 | vin speed engine_speed engine_hours distance | 0 | 95.4 | - | 0 |
+| DEV-53a6b0004b | Volvo | 2012 | 317 | engine_hours | 100 | 72.9 | 17 | 209170 |
+| DEV-58fe23c227 | Peterbilt | 2017 | 551 | distance | 100 | 83.3 | - | 98257 |
+| DEV-596d50d7ec | Volvo | 2019 | 819 | vin speed engine_speed engine_hours distance | 0 | 99.5 | - | 0 |
+| DEV-7c59b401f1 | Peterbilt | 2006 | 371 | vin | 100 | 0.4 | 00 | 42910 |
+| DEV-dc260db7ed | Kenworth | 2010 | 380 | vin | 100 | 0 | 00 31 | 69580 |
+| DEV-def20a3f49 | Volvo | 2023 | 730 | vin speed engine_speed engine_hours distance | 0 | 98.4 | - | 1667 |
+
+## How much the thresholds matter
+
+| threshold | set to | what is counted | halved | as set | doubled |
+|---|---|---|---|---|---|
+| frames for a usable capture | 10000 | devices with a usable capture | 71 | 69 | 66 |
+| share of moving readings without a value | 0.2 | devices with an unreadable value, of devices with enough readings | 8 of 57 | 8 of 57 | 8 of 57 |
+| GPS speed that counts as moving, km/h | 20 | devices with an unreadable value, of devices with enough readings | 8 of 57 | 8 of 57 | 8 of 57 |
+
+## Every device
+
+| device | make | model year | known from | captures | frames | usable | speed from | distance from | spread km | engine hours | km per engine hour | VIN on bus | logs | moving readings | not read | retried per 100 | error codes per 100 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| DEV-0d76477592 | Kenworth | 2024 | vin | 1 | 328251 | yes | 00 | 00 27 | 3721.825 | 16892.15 | 00 58.0; 27 57.8 | yes | 1 | 388 | - | 0.1 | 0 |
+| DEV-0e01bd9a04 | Kenworth | 2019 | vin | 1 | 85673 | yes | 00 | 00 | 0.1 | 7936.15 | 00 50.6 | no | 1 | 761 | - | 0 | 0 |
+| DEV-1305785172 | International | 2020 | vin | 1 | 320300 | yes | 00 0B | 00 17 | 0.36 | 18810.85 | 00 49.8; 17 49.8 | no | 1 | 547 | - | 0 | 0 |
+| DEV-1d55b651d4 | Kenworth | 2019 | vin | 1 | 86232 | yes | 00 | 00 | 0.1 | 31603.45 | 00 8.1 | no | 1 | 612 | - | 0 | 0 |
+| DEV-248c4f3593 | Volvo | 2021 | vin | 1 | 233715 | yes | 11 | 17 | 0 | 24272.4 | 17 38.5 | yes | 1 | 348 | - | 0 | 0 |
+| DEV-289ba06244 | International | 2019 | vin | 1 | 212531 | yes | 00 0B | 00 17 | 7666.55 | 19085.8 | 00 50.1; 17 50.5 | no | 1 | 521 | - | 0 | 0 |
+| DEV-2a70f4f934 | Peterbilt | 2013 | records | 1 | 74723 | yes | 00 | 00 | 0.105 | 51183.55 | 00 14.8 | no | 0 | - | - | - | - |
+| DEV-2aa95de898 | Volvo | 2023 | vin | 1 | 274867 | yes | 11 | 17 | 0 | 14182 | 17 59.6 | yes | 0 | - | - | - | - |
+| DEV-3598a3d732 | Kenworth | 2023 | vin | 1 | 334623 | yes | 00 | 00 17 27 | 2193.115 | 13507.7 | 00 65.7; 17 65.6; 27 65.6 | yes | 1 | 472 | - | 0 | 0 |
+| DEV-3abc271991 | International | 2021 | vin | 1 | 329973 | yes | 00 0B | 00 17 | 16941.21 | 19877.1 | 00 51.5; 17 50.7 | no | 1 | 798 | - | 0 | 0 |
+| DEV-3d9ec3f623 | Freightliner | 2020 | vin | 1 | 196678 | yes | 00 | 00 | 0.05 | 16640.6 | 00 53.7 | no | 1 | 407 | - | 0 | 0 |
+| DEV-41e6deb06f | Volvo | 2015 | records | 1 | 18781 | yes | - | 00 | 0 | - | - | no | 1 | 297 | vin speed engine_hours | 100 | 55.9 |
+| DEV-462ba6a575 | Peterbilt | 2022 | vin | 1 | 334667 | yes | 00 | 00 31 | 700.115 | 15817.8 | 00 70.0; 31 70.1 | yes | 1 | 580 | - | 0 | 0 |
+| DEV-462f801ea0 | Freightliner | 2019 | vin | 1 | 196545 | yes | 00 | 00 | 0.045 | 31136.55 | 00 68.0 | no | 1 | 423 | - | 0.2 | 0 |
+| DEV-4b53103235 | Volvo | 2020 | records | 1 | 0 | no | - | - | - | - | - | no | 1 | 475 | vin speed engine_speed engine_hours distance | 0 | 95.4 |
+| DEV-4d55f7a88b | Freightliner | 2016 | vin | 1 | 209114 | yes | 00 | 00 17 | 10122.205 | 24503.7 | 00 66.9; 17 67.3 | no | 1 | 752 | - | 0 | 0.4 |
+| DEV-4ebf2d616f | Volvo | 2019 | vin | 1 | 254148 | yes | 11 | 17 | 0 | 28660.45 | 17 53.1 | yes | 1 | 563 | - | 0 | 0.2 |
+| DEV-53a6b0004b | Volvo | 2012 | vin | 1 | 209170 | yes | 11 | 17 | 0 | - | - | no | 1 | 317 | engine_hours | 100 | 72.9 |
+| DEV-544a7439f0 | Freightliner | 2015 | vin | 1 | 185076 | yes | 00 | 00 17 | 1577450.03 | 32127.95 | 00 5.8; 17 54.9 | no | 1 | 304 | - | 0 | 0 |
+| DEV-58fe23c227 | Peterbilt | 2017 | vin | 1 | 98257 | yes | 00 | - | - | 27130.8 | - | no | 1 | 551 | distance | 100 | 83.3 |
+| DEV-596d50d7ec | Volvo | 2019 | records | 1 | 0 | no | - | - | - | - | - | no | 1 | 819 | vin speed engine_speed engine_hours distance | 0 | 99.5 |
+| DEV-5b3785fbf1 | International | 2019 | vin | 1 | 247650 | yes | 00 0B | 00 17 | 77.455 | 18678.6 | 00 67.1; 17 67.1 | yes | 1 | 231 | - | 0 | 0 |
+| DEV-5c306a2801 | International | 2022 | vin | 1 | 332450 | yes | 00 0B | 00 17 | 67.79 | 12530.4 | 00 53.9; 17 53.9 | no | 1 | 680 | - | 0 | 0.2 |
+| DEV-5cff4a01b5 | Volvo | 2026 | vin | 1 | 135389 | yes | 11 | 17 | 0.085 | 2557.1 | 17 62.5 | yes | 1 | 875 | - | 0 | 0 |
+| DEV-600f782b17 | Volvo | 2015 | vin | 1 | 164226 | yes | 11 | 17 | 0 | 8818.75 | 17 176.2 | yes | 0 | - | - | - | - |
+| DEV-6313260b75 | Volvo | 2020 | vin | 1 | 226970 | yes | 11 | 17 | 0 | 29900.65 | 17 8.4 | yes | 1 | 543 | - | 0 | 0.5 |
+| DEV-684311af86 | Volvo | 2026 | vin | 1 | 135272 | yes | 11 | 17 | 0.005 | 354.7 | 17 50.3 | yes | 1 | 788 | - | 0 | 0.1 |
+| DEV-6d464e06ca | Volvo | 2016 | vin | 1 | 191358 | yes | 11 | 17 | 0 | 34858.4 | 17 71.6 | yes | 1 | 344 | - | 0.1 | 0.3 |
+| DEV-6e418af0fe | Freightliner | 2021 | vin | 1 | 263130 | yes | 00 | 00 17 | 249.02 | 25726.15 | 00 52.5; 17 52.5 | no | 1 | 684 | - | 0 | 0 |
+| DEV-6e6e26a26b | Kenworth | 2018 | records | 1 | 6008 | no | - | - | - | - | - | no | 0 | - | - | - | - |
+| DEV-72f43eb2c9 | Freightliner | 2014 | records | 1 | 149732 | yes | 00 | 00 17 | 493712.87 | 48019 | 00 40.9; 17 30.6 | no | 0 | - | - | - | - |
+| DEV-78a424ab69 | Peterbilt | 2019 | vin | 1 | 330431 | yes | 00 | 00 31 | 800.065 | 19822.95 | 00 57.6; 31 57.6 | yes | 1 | 511 | - | 0 | 0.1 |
+| DEV-7c59b401f1 | Peterbilt | 2006 | records | 1 | 42910 | yes | 00 | 00 | 0 | 13448.2 | 00 47.9 | no | 1 | 371 | vin | 100 | 0.4 |
+| DEV-7d7e59631a | Peterbilt | 2016 | records | 1 | 131052 | yes | 00 | 00 31 | 1541685.08 | 16374.75 | 00 15.8; 31 109.9 | yes | 1 | 761 | - | 0 | 0 |
+| DEV-7f59044807 | Volvo | 2024 | vin | 1 | 227261 | yes | 11 | 17 | 0 | 16082.2 | 17 41.4 | yes | 1 | 459 | - | 0 | 0 |
+| DEV-811a412817 | Kenworth | 2018 | records | 1 | 94273 | yes | 00 | 00 31 | 746221.675 | 28149.95 | 00 18.4; 31 44.9 | no | 0 | - | - | - | - |
+| DEV-87cb561a8a | International | 2021 | vin | 1 | 345268 | yes | 00 0B | 00 17 | 32.555 | 17791.3 | 00 44.0; 17 44.0 | no | 1 | 544 | - | 0 | 0 |
+| DEV-8d8a03ff7c | Volvo | 2021 | records | 1 | 9442 | no | - | - | - | - | - | no | 0 | - | - | - | - |
+| DEV-964041cd91 | Freightliner | 2015 | vin | 1 | 169747 | yes | 00 | 00 17 | 1273777.8 | 29760.2 | 00 2.2; 17 45.0 | no | 1 | 498 | - | 0 | 0 |
+| DEV-9a99b62370 | Kenworth | 2022 | vin | 1 | 364862 | yes | 00 | 00 17 27 | 4432.405 | 13391.05 | 00 75.1; 17 74.7; 27 74.7 | yes | 1 | 739 | - | 0 | 0.1 |
+| DEV-9b55c7fdfa | Peterbilt | 2019 | vin | 1 | 99310 | yes | 00 | 00 | 0.09 | 17857.95 | 00 43.7 | no | 1 | 774 | - | 0 | 0 |
+| DEV-9c025f76c2 | Kenworth | 2019 | vin | 1 | 255405 | yes | 00 | 00 31 | 0.035 | 28571.55 | 00 63.8; 31 63.8 | yes | 1 | 707 | - | 0 | 0 |
+| DEV-9c52606ca1 | Volvo | 2016 | vin | 1 | 194225 | yes | 11 | 17 | 0 | 14685.05 | 17 51.2 | yes | 0 | - | - | - | - |
+| DEV-a0728f981f | Volvo | 2019 | vin | 1 | 250399 | yes | 11 | 17 | 0 | 15170.85 | 17 43.1 | yes | 1 | 321 | - | 0 | 0 |
+| DEV-ab9206a74a | Volvo | 2020 | records | 1 | 0 | no | - | - | - | - | - | no | 0 | - | - | - | - |
+| DEV-af3adba16c | Peterbilt | 2021 | vin | 4 | 377951 | yes | 00 | 00 31 | 0.1 | 16157.85 | 00 43.4; 31 43.4 | yes | 0 | - | - | - | - |
+| DEV-afadb02174 | International | 2020 | vin | 1 | 342394 | yes | 00 0B | 00 17 | 942.99 | 22674.9 | 00 44.5; 17 44.5 | no | 1 | 357 | - | 0 | 0 |
+| DEV-b116e8159a | Kenworth | 2021 | vin | 1 | 326665 | yes | 00 | 00 31 | 0.1 | 20942.05 | 00 48.2; 31 48.2 | yes | 0 | - | - | - | - |
+| DEV-b3302c1cd0 | Volvo | 2019 | vin | 2 | 229579 | yes | 11 | 17 | 0 | 24689.1 | 17 62.4 | yes | 2 | 1312 | - | 0 | 0 |
+| DEV-b6b5c18da6 | Kenworth | 2018 | vin | 1 | 91131 | yes | 00 | 00 | 0 | 29912.3 | 00 57.0 | no | 1 | 773 | - | 0 | 0 |
+| DEV-b777384247 | Kenworth | 2020 | vin | 1 | 325309 | yes | 00 | 00 31 | 905.12 | 19936.75 | 00 66.3; 31 66.4 | yes | 1 | 595 | - | 0 | 0 |
+| DEV-b790d132a6 | Peterbilt | 2014 | vin | 1 | 151524 | yes | 00 | 00 31 | 1340291.74 | 40420.9 | 00 29.3; 31 62.5 | yes | 1 | 713 | - | 0 | 1.1 |
+| DEV-b8bf86eccb | Freightliner | 2016 | records | 1 | 265287 | yes | 00 | 00 17 | 2223848.425 | 11477.5 | 00 10.9; 17 204.7 | no | 0 | - | - | - | - |
+| DEV-bf3c34caca | Kenworth | 2020 | vin | 1 | 372511 | yes | 00 | 00 31 | 0.045 | 25001.25 | 00 55.7; 31 55.7 | yes | 0 | - | - | - | - |
+| DEV-c4acf10b41 | Volvo | 2021 | vin | 1 | 221043 | yes | 11 | 17 | 0 | 1324.4 | 17 728.0 | yes | 0 | - | - | - | - |
+| DEV-c512d3fdf7 | Freightliner | 2021 | records | 1 | 257422 | yes | 00 | 00 17 | 56.265 | 2522.35 | 00 609.9; 17 609.9 | no | 0 | - | - | - | - |
+| DEV-c679850112 | Volvo | 2026 | vin | 1 | 13871 | yes | 11 | 17 | 0.1 | 2408.7 | 17 60.5 | yes | 1 | 481 | - | 0 | 0 |
+| DEV-c851942cca | Volvo | 2026 | vin | 1 | 135361 | yes | 11 | 17 | 0 | 2719.8 | 17 74.5 | yes | 1 | 616 | - | 0 | 0.3 |
+| DEV-cae28062ff | International | 2018 | vin | 1 | 152007 | yes | 00 0B | 00 17 | 11.13 | 16816.1 | 00 58.4; 17 58.4 | no | 1 | 708 | - | 0.1 | 0 |
+| DEV-d094d494bd | Volvo | 2020 | vin | 1 | 221638 | yes | 11 | 17 | 0 | 25669.65 | 17 50.5 | yes | 1 | 768 | - | 0 | 0.1 |
+| DEV-d809a4dd22 | Volvo | 2022 | vin | 1 | 225893 | yes | 11 | 17 | 0 | 20726.8 | 17 63.8 | yes | 0 | - | - | - | - |
+| DEV-dc260db7ed | Kenworth | 2010 | records | 1 | 69580 | yes | 00 | 00 31 | 0 | 40110 | 00 56.6; 31 56.6 | yes | 1 | 380 | vin | 100 | 0 |
+| DEV-dd9b566900 | Kenworth | 2014 | vin | 1 | 10146 | yes | 00 | 00 31 | 251654.695 | 30925.2 | 00 52.4; 31 60.5 | yes | 1 | 131 | - | 0.3 | 0 |
+| DEV-def20a3f49 | Volvo | 2023 | records | 1 | 1667 | no | - | - | - | - | - | no | 1 | 730 | vin speed engine_speed engine_hours distance | 0 | 98.4 |
+| DEV-df22a8a8a8 | Volvo | 2019 | vin | 1 | 270890 | yes | 11 | 17 | 0 | 30514.5 | 17 43.2 | yes | 1 | 651 | - | 0 | 0 |
+| DEV-e08a7a160f | Volvo | 2016 | vin | 1 | 184345 | yes | 11 | 17 | 0 | 4259.45 | 17 325.8 | yes | 1 | 793 | - | 0.1 | 0.2 |
+| DEV-e3bd4c28b3 | Freightliner | 2018 | vin | 1 | 205761 | yes | 00 | 00 17 | 1042475.62 | 37554.95 | 00 26.5; 17 54.3 | no | 1 | 711 | - | 0.7 | 0.1 |
+| DEV-e755bd6f48 | Freightliner | 2020 | records | 1 | 197756 | yes | 00 | 00 | 0.08 | 30361.4 | 00 51.8 | no | 0 | - | - | - | - |
+| DEV-e76ce3a5af | Peterbilt | 2022 | vin | 1 | 364660 | yes | 00 | 00 31 | 0.05 | 10429.1 | 00 56.4; 31 56.4 | yes | 1 | 471 | - | 0 | 0 |
+| DEV-e901bf1f15 | Peterbilt | 2025 | vin | 1 | 316651 | yes | 00 | 00 17 27 | 14284.95 | 9859.05 | 00 74.1; 17 75.6; 27 75.6 | yes | 1 | 541 | - | 0 | 0.3 |
+| DEV-ec2deaf2d5 | Peterbilt | 2023 | vin | 1 | 321031 | yes | 00 | 00 17 27 | 3098.01 | 17500.6 | 00 63.5; 17 63.3; 27 63.3 | yes | 1 | 714 | - | 0 | 0 |
+| DEV-ecd6a374b4 | Kenworth | 2019 | vin | 1 | 99451 | yes | 00 | 00 | 0.05 | 36457.35 | 00 42.3 | no | 1 | 86 | - | 0 | 0 |
+| DEV-f5708b3cd5 | Freightliner | 2021 | vin | 1 | 251467 | yes | 00 | 00 17 | 0.06 | 19519.15 | 00 62.1; 17 62.1 | no | 1 | 463 | - | 0 | 0 |
+| DEV-f5bdc8e9a4 | Volvo | 2021 | vin | 1 | 162345 | yes | 11 | 17 | 0 | 24650.6 | 17 60.3 | yes | 0 | - | - | - | - |
+| DEV-f86f2685cf | Peterbilt | 2018 | vin | 1 | 119820 | yes | 00 | 00 | 0.03 | 25795.8 | 00 60.9 | no | 1 | 517 | - | 0 | 0 |

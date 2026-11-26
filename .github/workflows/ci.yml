@@ -20,7 +20,10 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
       - run: pytest -q
-      - name: compare the published captures
-        run: j1939cap summarize data/input/captures --out /tmp/reports
+      - name: rebuild the reports from the published data
+        run: |
+          j1939cap summarize data/input/captures --out /tmp/reports
+          j1939cap pair data/input/captures data/input/device_logs --out /tmp/reports
+          j1939cap fleet data/input --out /tmp/reports
       - name: the committed reports match a fresh run
         run: diff -r reports /tmp/reports

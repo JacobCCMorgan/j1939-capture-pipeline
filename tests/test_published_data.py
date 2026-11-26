@@ -18,7 +18,7 @@ MANIFEST = read_manifest(CAPTURES) if CAPTURES.is_dir() else []
 def test_every_file_is_listed_and_every_listed_file_is_there():
     listed = {entry["capture"] for entry in MANIFEST}
     present = {p.name[: -len(".csv.gz")] for p in CAPTURES.glob("*.csv.gz")}
-    assert listed == present
+    assert listed == present and len(listed) == 79
     assert all((CAPTURES / f"{name}_summary.txt").is_file() for name in listed)
 
 
